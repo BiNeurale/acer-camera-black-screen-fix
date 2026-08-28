@@ -1,6 +1,7 @@
 # Acer webcam black screen — root cause and fix
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
+![Fixed on](https://img.shields.io/badge/fixed_on-10%2B_machines-2da44e)
 ![Platform](https://img.shields.io/badge/Windows_11-found_on_build_26200-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE)
 
@@ -88,10 +89,15 @@ In order, it will:
 4. read the registry back to check;
 5. restart the camera device so Media Foundation rebuilds the pipeline.
 
-It worked immediately, with no reboot, on every machine I ran it on, and it held
-across reboots afterwards. Disabling the one service was enough:
-`-DisableAllServices` is there for the case where the registration comes back,
-and I have never needed it.
+This has been run across a managed fleet: **more than ten laptops of the same
+model, every one of them fixed.** It worked immediately, with no reboot, and the
+registrations were still gone after restarting. Disabling the one service was
+enough — `-DisableAllServices` is there in case the registration comes back, and
+I have not needed it once.
+
+The only run that took a second visit was a machine with a video call open,
+where the device restart could not go ahead. That is what `-Force` below now
+handles.
 
 The webcam ends up on the plain Microsoft stack, `usbvideo.inf` plus the platform
 DMFT. You lose whatever Acer's effects layer was doing — background blur, auto
@@ -243,8 +249,9 @@ tried that turned out to be wrong, is in **[docs/root-cause.md](docs/root-cause.
 - Broke after `KB5121003`, `KB5123304`, `KB5120708`; a second machine broke in
   July after `KB5120102`, `KB5101650`, `KB5100998`
 
-The script reads the CLSID off your machine instead of assuming mine, so it
-should behave sensibly where the numbers differ.
+Reproduced and fixed on **more than ten machines of that model**, all of them
+in normal daily use. The script reads the CLSID off your machine instead of
+assuming mine, so it should behave sensibly where the numbers differ.
 
 **Not tested.** The sibling package family `acergaicameracomponent.inf` / "Acer
 GAI Camera Service", which I found on a second machine and which looks like the
@@ -256,7 +263,9 @@ forceful remove-and-rescan step refuses to touch on purpose.
 
 ## For Acer and Microsoft engineers
 
-The short version, with everything needed to reproduce it:
+The short version, with everything needed to reproduce it. This is not a
+one-machine anecdote: it was reproduced, and fixed, on **more than ten laptops
+of the same model** in a managed fleet.
 
 `AcerARTAIMMXDriverService` (`AAADSvc.exe`, from
 `acerartaimmxdrivercomponent.inf` 2.0.3038.0) launches `DetectCameraDMFT.exe` at

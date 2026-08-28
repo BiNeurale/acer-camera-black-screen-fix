@@ -46,6 +46,19 @@ break anything: **the August Windows update is what made that DMFT
 incompatible.** That distinction matters for a bug report and not at all for the
 remediation, which is the same either way.
 
+### Outcome
+
+Stopping the writer and clearing the registration took the three registrations
+to zero on every machine tried, `UninstallAcerCameraDMFT.exe` exiting 0 in about
+a second each time. The picture came back straight away, without a reboot, and
+the registrations were still absent after restarting — so disabling
+`AcerARTAIMMXDriverService` alone is sufficient and the other two services can
+stay running.
+
+Rolled out to **more than ten laptops of the same model**, all recovered. One
+machine needed a second pass because a video call was open and the device
+restart could not proceed; that case is now handled by `-Force`.
+
 ## The three keys
 
 The detector writes to three interface categories, not one. Taken from the
