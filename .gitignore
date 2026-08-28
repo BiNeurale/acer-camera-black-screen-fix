@@ -1,0 +1,5 @@
+# Output the scripts produce when they are run from the repo folder
+camera-diag-*.txt
+camera-fix-*.log
+dmft-backup-*.reg
+camera-access-state.json
