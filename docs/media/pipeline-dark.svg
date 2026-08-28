@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="618" viewBox="0 0 860 618" role="img" aria-label="How the Acer Device MFT sits in the Windows camera pipeline">
+<rect width="860" height="618" fill="#0d1117"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7781"/></marker><marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker></defs>
+<path d="M 170 279.0 L 124 279.0 L 124 491.0 L 170 491.0" fill="none" stroke="#3fb950" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ag)"/>
+<g transform="rotate(-90 112 385.0)">
+<text x="112" y="389.0" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#3fb950" text-anchor="middle">after the fix</text>
+</g>
+<rect x="170" y="34" width="330" height="66" rx="10" ry="10" fill="#151b23" stroke="#3d444d" stroke-width="1.5"/>
+<text x="190" y="62" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#f0f6fc" text-anchor="start">Camera sensor</text>
+<text x="190" y="82" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" font-weight="400" fill="#9198a1" text-anchor="start">USB UVC, ACER HD User Facing</text>
+<line x1="335.0" y1="105" x2="335.0" y2="133" stroke="#6e7781" stroke-width="2" marker-end="url(#a)"/>
+<rect x="170" y="140" width="330" height="66" rx="10" ry="10" fill="#151b23" stroke="#3d444d" stroke-width="1.5"/>
+<text x="190" y="168" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#f0f6fc" text-anchor="start">usbvideo.inf + DevProxy</text>
+<text x="190" y="188" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" font-weight="400" fill="#9198a1" text-anchor="start">Microsoft inbox driver</text>
+<text x="480" y="168" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#4493f8" text-anchor="end">Microsoft</text>
+<line x1="335.0" y1="211" x2="335.0" y2="239" stroke="#6e7781" stroke-width="2" marker-end="url(#a)"/>
+<rect x="170" y="246" width="330" height="66" rx="10" ry="10" fill="#151b23" stroke="#3d444d" stroke-width="1.5"/>
+<text x="190" y="274" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#f0f6fc" text-anchor="start">Platform DMFT</text>
+<text x="190" y="294" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" font-weight="400" fill="#9198a1" text-anchor="start">Microsoft, EnablePlatformDmft = 1</text>
+<text x="480" y="274" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#4493f8" text-anchor="end">Microsoft</text>
+<line x1="335.0" y1="317" x2="335.0" y2="345" stroke="#6e7781" stroke-width="2" marker-end="url(#a)"/>
+<rect x="170" y="352" width="330" height="66" rx="10" ry="10" fill="#25171c" stroke="#a4252b" stroke-width="2"/>
+<text x="190" y="380" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#f85149" text-anchor="start">Acer DMFT</text>
+<text x="190" y="400" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" font-weight="400" fill="#9198a1" text-anchor="start">AcerMediaService.dll</text>
+<line x1="335.0" y1="423" x2="335.0" y2="451" stroke="#f85149" stroke-width="2" marker-end="url(#ab)"/>
+<text x="351.0" y="444" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#f85149" text-anchor="start">no frames  →  black picture</text>
+<rect x="170" y="458" width="330" height="66" rx="10" ry="10" fill="#151b23" stroke="#3d444d" stroke-width="1.5"/>
+<text x="190" y="486" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="16" font-weight="600" fill="#f0f6fc" text-anchor="start">Your application</text>
+<text x="190" y="506" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" font-weight="400" fill="#9198a1" text-anchor="start">Teams, Meet, Zoom, Camera app</text>
+<line x1="500" y1="385.0" x2="534" y2="385.0" stroke="#a4252b" stroke-width="1.5" stroke-dasharray="4 3"/>
+<rect x="534" y="346" width="302" height="78" rx="8" ry="8" fill="#25171c" stroke="#a4252b" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="548" y="370" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="12" font-weight="600" fill="#f85149" text-anchor="start">written by DetectCameraDMFT.exe</text>
+<text x="548" y="388" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="start">on 3 device interface keys,</text>
+<text x="548" y="404" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="11.5" font-weight="400" fill="#9198a1" text-anchor="start">restored at every boot</text>
+<text x="170" y="566" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,'DejaVu Sans Mono',monospace" font-size="12.5" font-weight="400" fill="#9198a1" text-anchor="start">CameraDeviceMftClsidChain = {2EB17717-49CE-4B6C-85E7-58EE3AF41669}</text>
+<text x="170" y="588" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Fira Sans','DejaVu Sans',Helvetica,Arial,sans-serif" font-size="12.5" font-weight="400" fill="#9198a1" text-anchor="start">Device Manager reports the camera as healthy the whole time.</text>
+</svg>
