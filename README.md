@@ -209,8 +209,14 @@ uninstalled and no driver package is deleted, so there is nothing to reinstall.
 |---|---|
 | 0 | Clean — no third-party DMFT registration left |
 | 1 | Registration still there, read the log |
-| 2 | Not running elevated |
+| 2 | Cannot run: not elevated, or not Windows |
 | 3 | Registration removed, device restart incomplete — reboot |
+
+> [!WARNING]
+> Invoke it with **`-File`**, never `-Command`. PowerShell collapses every exit
+> code to 1 when a script runs through `-Command`, so an RMM configured that way
+> reports a failure on a machine that was fixed perfectly. This is not specific
+> to this script: a file containing nothing but `exit 2` behaves the same way.
 
 Logs, registry backups and the access state file all land in
 `%ProgramData%\CameraFix`.

@@ -482,6 +482,14 @@ if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Forc
 Write-CameraLog "=== Fix-AcerCameraDMFT $ScriptVersion on $env:COMPUTERNAME ===" 'STEP'
 Write-CameraLog ("Mode: {0}{1}" -f $(if ($Apply) { 'APPLY' } else { 'DRY RUN (read only)' }), $(if ($Force) { ' +FORCE' } else { '' })) 'STEP'
 
+# PowerShell 7 also runs on Linux and macOS, where none of this exists. Say so
+# once, instead of throwing .NET exceptions at whoever was curious. The version
+# test short-circuits on 5.1, where $IsWindows is not defined at all.
+if ($PSVersionTable.PSVersion.Major -ge 6 -and -not $IsWindows) {
+    Write-CameraLog 'This is a Windows script: there is no camera pipeline to fix here.' 'ERROR'
+    exit 2
+}
+
 if (-not (Test-Admin)) {
     Write-CameraLog 'This needs an elevated PowerShell. Stopping.' 'ERROR'
     exit 2
