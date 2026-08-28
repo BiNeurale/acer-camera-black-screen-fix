@@ -18,10 +18,14 @@
     that have used the camera.
 #>
 
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Two lines telling the operator where the report was written.')]
 [CmdletBinding()]
 param(
     [string]$OutFile = "$env:USERPROFILE\Desktop\camera-diag-$env:COMPUTERNAME-$(Get-Date -Format yyyyMMdd-HHmmss).txt"
 )
+
+$ScriptVersion = '1.0.0'
 
 # All three interface categories a Device MFT can be registered on. Looking at
 # only the first one hides half the problem: DirectShow uses the other two.
@@ -38,6 +42,7 @@ function W([string]$s = '') { $out.Add($s) }
 function Section([string]$t) { W ''; W ('=' * 78); W "  $t"; W ('=' * 78) }
 
 Section "1. SYSTEM"
+W "Camera-Diag   : $ScriptVersion"
 try {
     $cs = Get-CimInstance Win32_ComputerSystem
     $bi = Get-CimInstance Win32_BIOS
@@ -74,7 +79,10 @@ try {
             try {
                 $p = Get-PnpDeviceProperty -InstanceId $d.InstanceId -KeyName $k -ErrorAction Stop
                 W ("  {0,-30} {1}" -f ($k -replace 'DEVPKEY_Device_', ''), ($p.Data -join ' | '))
-            } catch { }
+            } catch {
+                # Not every device carries every property. Nothing to report.
+                Write-Verbose "$k not present on $($d.InstanceId)"
+            }
         }
         W ''
     }

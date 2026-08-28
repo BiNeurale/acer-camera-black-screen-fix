@@ -79,6 +79,14 @@
         3  registration removed but the device could not be restarted (reboot)
 #>
 
+# Write-Host is deliberate: an operator standing at the machine has to see the
+# colour-coded result, and every line also goes to the log file. -Apply is this
+# script's own dry-run gate, so the internal helpers do not each need -WhatIf on
+# top of it; adding it would only make the console output confusing.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '',
+    Justification = 'Console output is the point; everything is also written to the log file.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+    Justification = 'The script gates every change behind -Apply, which is documented in the help.')]
 [CmdletBinding()]
 param(
     [switch]$Apply,
@@ -90,6 +98,8 @@ param(
 )
 
 # ------------------------------------------------------------------ constants -
+
+$ScriptVersion = '1.0.0'
 
 # Device interface categories the Acer detector writes to. There are three of
 # them, not one: the strings inside UninstallAcerCameraDMFT.exe list all three,
@@ -121,7 +131,7 @@ $script:PackageLocationCache = @{}
 
 # -------------------------------------------------------------------- helpers -
 
-function Write-Log {
+function Write-CameraLog {
     param([string]$Message, [ValidateSet('INFO','WARN','ERROR','OK','STEP')][string]$Level = 'INFO')
     $line = '{0} [{1,-5}] {2}' -f (Get-Date -Format 'HH:mm:ss'), $Level, $Message
     $color = switch ($Level) { 'ERROR' {'Red'} 'WARN' {'Yellow'} 'OK' {'Green'} 'STEP' {'Cyan'} default {'Gray'} }
@@ -139,7 +149,7 @@ function Invoke-PnpUtil {
     param([string[]]$Arguments)
     $out = & pnputil.exe @Arguments 2>&1
     $code = $LASTEXITCODE
-    $out | Where-Object { "$_" -match '\S' } | ForEach-Object { Write-Log ("  pnputil: {0}" -f "$_".Trim()) }
+    $out | Where-Object { "$_" -match '\S' } | ForEach-Object { Write-CameraLog ("  pnputil: {0}" -f "$_".Trim()) }
     # 3010 is "done, reboot to finish", not a failure.
     ($code -eq 0 -or $code -eq 3010)
 }
@@ -192,7 +202,7 @@ function Backup-Registration {
         $root = "HKLM\SYSTEM\CurrentControlSet\Control\DeviceClasses\$guid"
         $file = Join-Path $LogDir ("dmft-backup-{0}-{1}-{2}.reg" -f $env:COMPUTERNAME, $stamp, $Categories[$guid])
         & reg export $root $file /y 2>$null | Out-Null
-        if (Test-Path -LiteralPath $file) { $files += $file; Write-Log "Registry backup: $file" 'OK' }
+        if (Test-Path -LiteralPath $file) { $files += $file; Write-CameraLog "Registry backup: $file" 'OK' }
     }
     $files
 }
@@ -247,7 +257,12 @@ function Get-PackageInstallLocation {
         $pkg = Get-AppxPackage -AllUsers -PackageTypeFilter Main -ErrorAction SilentlyContinue |
                Where-Object { $_.PackageFamilyName -eq $FamilyName } | Select-Object -First 1
         if ($pkg) { $loc = $pkg.InstallLocation }
-    } catch { }
+    } catch {
+        # No Appx cmdlets, or the package is not installed for any user. Not
+        # fatal: without it we simply cannot name the process behind a
+        # packaged app, and the consent store entry is reported on its own.
+        Write-Verbose "Get-AppxPackage unavailable: $($_.Exception.Message)"
+    }
     $script:PackageLocationCache[$FamilyName] = $loc
     $loc
 }
@@ -308,7 +323,7 @@ function Lock-CameraAccess {
             $saved += [pscustomobject]@{ Path = $path; Previous = $cur }
         }
     }
-    if (-not $saved.Count) { Write-Log 'Camera access was already denied everywhere.' 'INFO'; return $false }
+    if (-not $saved.Count) { Write-CameraLog 'Camera access was already denied everywhere.' 'INFO'; return $false }
 
     # Write the state file first: if this run dies halfway, the next one (or
     # -Rollback) still knows what to put back.
@@ -316,9 +331,9 @@ function Lock-CameraAccess {
     foreach ($e in $saved) {
         try {
             Set-ItemProperty -LiteralPath $e.Path -Name Value -Value 'Deny' -Type String -Force -ErrorAction Stop
-            Write-Log ("Camera access blocked: {0} ({1} -> Deny)" -f $e.Path, $(if ($e.Previous) { $e.Previous } else { 'not set' })) 'OK'
+            Write-CameraLog ("Camera access blocked: {0} ({1} -> Deny)" -f $e.Path, $(if ($e.Previous) { $e.Previous } else { 'not set' })) 'OK'
         } catch {
-            Write-Log ("Could not block camera access on {0}: {1}" -f $e.Path, $_.Exception.Message) 'WARN'
+            Write-CameraLog ("Could not block camera access on {0}: {1}" -f $e.Path, $_.Exception.Message) 'WARN'
         }
     }
     $true
@@ -329,16 +344,16 @@ function Unlock-CameraAccess {
     Initialize-HkuDrive     # the state file can name HKU paths, and the drive is not there by default
     $saved = @()
     try { $saved = @(Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json) }
-    catch { Write-Log "Cannot read $StateFile : $($_.Exception.Message)" 'ERROR'; return }
+    catch { Write-CameraLog "Cannot read $StateFile : $($_.Exception.Message)" 'ERROR'; return }
 
     foreach ($e in $saved) {
         if (-not $e.Path -or -not (Test-Path -LiteralPath $e.Path)) { continue }
         if ([string]::IsNullOrEmpty($e.Previous)) {
             Remove-ItemProperty -LiteralPath $e.Path -Name Value -ErrorAction SilentlyContinue
-            Write-Log ("Camera access restored: {0} (value removed)" -f $e.Path) 'OK'
+            Write-CameraLog ("Camera access restored: {0} (value removed)" -f $e.Path) 'OK'
         } else {
             Set-ItemProperty -LiteralPath $e.Path -Name Value -Value $e.Previous -Type String -Force
-            Write-Log ("Camera access restored: {0} -> {1}" -f $e.Path, $e.Previous) 'OK'
+            Write-CameraLog ("Camera access restored: {0} -> {1}" -f $e.Path, $e.Previous) 'OK'
         }
     }
     Remove-Item -LiteralPath $StateFile -Force -ErrorAction SilentlyContinue
@@ -352,23 +367,23 @@ function Stop-CameraHolder {
     $capture = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
                  Where-Object { $_.CommandLine -match 'utility-sub-type=video_capture' })
     foreach ($c in $capture) {
-        Write-Log ("Closing capture helper {0} (PID {1})" -f $c.Name, $c.ProcessId) 'OK'
+        Write-CameraLog ("Closing capture helper {0} (PID {1})" -f $c.Name, $c.ProcessId) 'OK'
         Stop-Process -Id $c.ProcessId -Force -ErrorAction SilentlyContinue
     }
     if ($capture.Count) { Start-Sleep -Seconds 2 }
 
     $still = @(Get-CameraHolder)
-    if (-not $still.Count) { Write-Log 'Camera released.' 'OK'; return }
+    if (-not $still.Count) { Write-CameraLog 'Camera released.' 'OK'; return }
 
     foreach ($h in $still) {
         if (-not $h.Processes.Count) {
-            Write-Log ("{0} still marked as streaming but no process matches it (stale entry)" -f $h.Display) 'WARN'
+            Write-CameraLog ("{0} still marked as streaming but no process matches it (stale entry)" -f $h.Display) 'WARN'
             continue
         }
         foreach ($p in $h.Processes) {
             $short = ($p.Name -replace '\.exe$', '').ToLower()
-            if ($NeverKill -contains $short) { Write-Log "Refusing to kill $($p.Name)" 'WARN'; continue }
-            Write-Log ("Closing {0} (PID {1}) - it is holding the camera" -f $p.Name, $p.ProcessId) 'WARN'
+            if ($NeverKill -contains $short) { Write-CameraLog "Refusing to kill $($p.Name)" 'WARN'; continue }
+            Write-CameraLog ("Closing {0} (PID {1}) - it is holding the camera" -f $p.Name, $p.ProcessId) 'WARN'
             Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
         }
     }
@@ -382,10 +397,10 @@ function Stop-FrameServerStack {
         $stopped = $false
         try {
             Stop-Service -Name $n -Force -ErrorAction Stop
-            Write-Log "$n stopped" 'OK'
+            Write-CameraLog "$n stopped" 'OK'
             $stopped = $true
         } catch {
-            Write-Log "$n would not stop: $($_.Exception.Message)" 'WARN'
+            Write-CameraLog "$n would not stop: $($_.Exception.Message)" 'WARN'
         }
         if ($stopped) { continue }
 
@@ -395,10 +410,10 @@ function Stop-FrameServerStack {
                       Select-Object -ExpandProperty Name)
         $foreign = @($siblings | Where-Object { $FrameServices -notcontains $_ })
         if ($foreign.Count) {
-            Write-Log ("Leaving PID {0} alone, it also hosts {1}" -f $svc.ProcessId, ($foreign -join ', ')) 'WARN'
+            Write-CameraLog ("Leaving PID {0} alone, it also hosts {1}" -f $svc.ProcessId, ($foreign -join ', ')) 'WARN'
         } else {
             Stop-Process -Id $svc.ProcessId -Force -ErrorAction SilentlyContinue
-            Write-Log ("Killed the host process of {0} (PID {1})" -f $n, $svc.ProcessId) 'WARN'
+            Write-CameraLog ("Killed the host process of {0} (PID {1})" -f $n, $svc.ProcessId) 'WARN'
         }
     }
     # Both are trigger-start services: Windows brings them back when an app asks
@@ -416,26 +431,26 @@ function Test-CameraDeviceHealthy {
 function Reset-CameraDevice {
     param([string]$InstanceId, [switch]$Force)
 
-    Write-Log ("Restarting {0}" -f $InstanceId)
+    Write-CameraLog ("Restarting {0}" -f $InstanceId)
 
     # pnputil /restart-device exists on Windows 11 and is the cleanest of the
     # three. On Windows 10 it prints usage and exits non zero, so we fall through.
     if (Invoke-PnpUtil @('/restart-device', $InstanceId)) {
-        if (Test-CameraDeviceHealthy $InstanceId) { Write-Log 'Restarted with pnputil /restart-device' 'OK'; return $true }
+        if (Test-CameraDeviceHealthy $InstanceId) { Write-CameraLog 'Restarted with pnputil /restart-device' 'OK'; return $true }
     }
 
     try {
         Disable-PnpDevice -InstanceId $InstanceId -Confirm:$false -ErrorAction Stop
         Start-Sleep -Seconds 2
         Enable-PnpDevice -InstanceId $InstanceId -Confirm:$false -ErrorAction Stop
-        Write-Log 'Restarted with disable/enable' 'OK'
+        Write-CameraLog 'Restarted with disable/enable' 'OK'
         return $true
     } catch {
-        Write-Log ("disable/enable failed: {0}" -f $_.Exception.Message) 'WARN'
+        Write-CameraLog ("disable/enable failed: {0}" -f $_.Exception.Message) 'WARN'
     }
 
     if (-not $Force) {
-        Write-Log 'Device is in use. Re-run with -Force, or reboot: a reboot has the same effect.' 'WARN'
+        Write-CameraLog 'Device is in use. Re-run with -Force, or reboot: a reboot has the same effect.' 'WARN'
         return $false
     }
 
@@ -444,19 +459,19 @@ function Reset-CameraDevice {
     # and leaving a machine without a camera is worse than leaving the fix
     # pending until the next restart.
     if ($InstanceId -notlike 'USB\*') {
-        Write-Log "Not removing $InstanceId : remove and rescan is only safe on USB. Reboot instead." 'WARN'
+        Write-CameraLog "Not removing $InstanceId : remove and rescan is only safe on USB. Reboot instead." 'WARN'
         return $false
     }
 
-    Write-Log 'Removing the device node and rescanning.' 'WARN'
+    Write-CameraLog 'Removing the device node and rescanning.' 'WARN'
     Invoke-PnpUtil @('/remove-device', $InstanceId) | Out-Null
     Invoke-PnpUtil @('/scan-devices') | Out-Null
     for ($i = 1; $i -le 20; $i++) {
-        if (Test-CameraDeviceHealthy $InstanceId) { Write-Log 'Device came back after the rescan' 'OK'; return $true }
+        if (Test-CameraDeviceHealthy $InstanceId) { Write-CameraLog 'Device came back after the rescan' 'OK'; return $true }
         Start-Sleep -Seconds 1
         if ($i -eq 10) { Invoke-PnpUtil @('/scan-devices') | Out-Null }
     }
-    Write-Log 'Device did not come back within 20s. Reboot so Windows re-enumerates it.' 'ERROR'
+    Write-CameraLog 'Device did not come back within 20s. Reboot so Windows re-enumerates it.' 'ERROR'
     $false
 }
 
@@ -464,24 +479,27 @@ function Reset-CameraDevice {
 
 if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
 
-Write-Log "=== Fix-AcerCameraDMFT on $env:COMPUTERNAME ===" 'STEP'
-Write-Log ("Mode: {0}{1}" -f $(if ($Apply) { 'APPLY' } else { 'DRY RUN (read only)' }), $(if ($Force) { ' +FORCE' } else { '' })) 'STEP'
+Write-CameraLog "=== Fix-AcerCameraDMFT $ScriptVersion on $env:COMPUTERNAME ===" 'STEP'
+Write-CameraLog ("Mode: {0}{1}" -f $(if ($Apply) { 'APPLY' } else { 'DRY RUN (read only)' }), $(if ($Force) { ' +FORCE' } else { '' })) 'STEP'
 
 if (-not (Test-Admin)) {
-    Write-Log 'This needs an elevated PowerShell. Stopping.' 'ERROR'
+    Write-CameraLog 'This needs an elevated PowerShell. Stopping.' 'ERROR'
     exit 2
 }
 
 try {
     $cs = Get-CimInstance Win32_ComputerSystem
     $os = Get-CimInstance Win32_OperatingSystem
-    Write-Log ("Machine: {0} {1} | {2} build {3}" -f $cs.Manufacturer, $cs.Model, $os.Caption, $os.BuildNumber)
-} catch { }
+    Write-CameraLog ("Machine: {0} {1} | {2} build {3}" -f $cs.Manufacturer, $cs.Model, $os.Caption, $os.BuildNumber)
+} catch {
+    # Cosmetic banner only. If CIM is unhappy the fix still works.
+    Write-CameraLog "Could not read the machine description: $($_.Exception.Message)" 'WARN'
+}
 
 # An interrupted -Force run leaves the camera switched off. Put it back before
 # doing anything else, whatever mode we are in.
 if (Test-Path -LiteralPath $StateFile) {
-    Write-Log 'A previous run left camera access blocked. Restoring it now.' 'WARN'
+    Write-CameraLog 'A previous run left camera access blocked. Restoring it now.' 'WARN'
     Unlock-CameraAccess
 }
 
@@ -490,24 +508,24 @@ $services = @(Get-AcerCameraService)
 # ------------------------------------------------------------------- rollback -
 
 if ($Rollback) {
-    Write-Log '--- ROLLBACK: putting the Acer services back ---' 'STEP'
-    if (-not $services.Count) { Write-Log 'No Acer camera service on this machine.' 'WARN' }
+    Write-CameraLog '--- ROLLBACK: putting the Acer services back ---' 'STEP'
+    if (-not $services.Count) { Write-CameraLog 'No Acer camera service on this machine.' 'WARN' }
     foreach ($s in $services) {
         if ($Apply) {
             Set-Service -Name $s.Name -StartupType Automatic
             Start-Service -Name $s.Name -ErrorAction SilentlyContinue
-            Write-Log "$($s.Name) -> Automatic, started" 'OK'
+            Write-CameraLog "$($s.Name) -> Automatic, started" 'OK'
         } else {
-            Write-Log "[dry run] $($s.Name) -> Automatic + start"
+            Write-CameraLog "[dry run] $($s.Name) -> Automatic + start"
         }
     }
-    Write-Log 'Reboot: DetectCameraDMFT will write the registration back at the next boot.' 'INFO'
+    Write-CameraLog 'Reboot: DetectCameraDMFT will write the registration back at the next boot.' 'INFO'
     exit 0
 }
 
 # ---------------------------------------------------------------- 1 inventory -
 
-Write-Log '--- 1. Inventory ---' 'STEP'
+Write-CameraLog '--- 1. Inventory ---' 'STEP'
 
 $pkg = @()
 foreach ($glob in $PackageGlobs) {
@@ -519,44 +537,44 @@ if ($pkg.Count) {
     foreach ($p in $pkg) {
         $dll = Join-Path $p.FullName 'AcerMediaService.dll'
         $ver = if (Test-Path -LiteralPath $dll) { (Get-Item -LiteralPath $dll).VersionInfo.FileVersion } else { 'n/a' }
-        Write-Log ("Package: {0}  (AcerMediaService.dll {1})" -f $p.Name, $ver)
+        Write-CameraLog ("Package: {0}  (AcerMediaService.dll {1})" -f $p.Name, $ver)
     }
 } else {
-    Write-Log 'No Acer camera component package in the driver store.' 'WARN'
+    Write-CameraLog 'No Acer camera component package in the driver store.' 'WARN'
 }
 
 if ($services.Count) {
-    foreach ($s in $services) { Write-Log ("Service {0,-28} {1,-9} StartMode={2}" -f $s.Name, $s.State, $s.StartMode) }
+    foreach ($s in $services) { Write-CameraLog ("Service {0,-28} {1,-9} StartMode={2}" -f $s.Name, $s.State, $s.StartMode) }
 } else {
-    Write-Log 'No Acer camera service present.'
+    Write-CameraLog 'No Acer camera service present.'
 }
 
 $holders = @(Get-CameraHolder)
 if ($holders.Count) {
     foreach ($h in $holders) {
         $pids = if ($h.Processes.Count) { ($h.Processes | ForEach-Object { "$($_.Name)/$($_.ProcessId)" }) -join ', ' } else { 'no live process' }
-        Write-Log ("CAMERA IN USE by {0}  [{1}]" -f $h.Display, $pids) 'WARN'
+        Write-CameraLog ("CAMERA IN USE by {0}  [{1}]" -f $h.Display, $pids) 'WARN'
     }
-    if (-not $Force) { Write-Log 'Without -Force the device restart will most likely fail. See README.' 'WARN' }
+    if (-not $Force) { Write-CameraLog 'Without -Force the device restart will most likely fail. See README.' 'WARN' }
 } else {
-    Write-Log 'Nothing is streaming from the camera right now.' 'OK'
+    Write-CameraLog 'Nothing is streaming from the camera right now.' 'OK'
 }
 
 $before = @(Get-DmftRegistration)
 if ($before.Count) {
     foreach ($r in $before) {
-        Write-Log ("REGISTRATION  [{0}]  {1} = {2}" -f $r.Category, $r.Name, $r.Data) 'WARN'
-        Write-Log ("              {0}" -f $r.Key)
+        Write-CameraLog ("REGISTRATION  [{0}]  {1} = {2}" -f $r.Category, $r.Name, $r.Data) 'WARN'
+        Write-CameraLog ("              {0}" -f $r.Key)
     }
 } else {
-    Write-Log 'No third party DMFT registration found: this machine is already clean.' 'OK'
-    if (-not $Apply) { Write-Log 'Nothing to do.' 'OK'; exit 0 }
+    Write-CameraLog 'No third party DMFT registration found: this machine is already clean.' 'OK'
+    if (-not $Apply) { Write-CameraLog 'Nothing to do.' 'OK'; exit 0 }
 }
 
 if (-not $Apply) {
-    Write-Log ''
-    Write-Log 'Dry run finished. Re-run with -Apply to change anything.' 'STEP'
-    Write-Log "Log: $LogFile"
+    Write-CameraLog ''
+    Write-CameraLog 'Dry run finished. Re-run with -Apply to change anything.' 'STEP'
+    Write-CameraLog "Log: $LogFile"
     exit 0
 }
 
@@ -568,25 +586,25 @@ $resetOk      = $true
 try {
 
     # ------------------------------------------------- 2 stop the writer ------
-    Write-Log '--- 2. Stopping whatever writes the registration ---' 'STEP'
+    Write-CameraLog '--- 2. Stopping whatever writes the registration ---' 'STEP'
 
     $targets = if ($DisableAllServices) { @($services.Name) } else { @($WriterService) }
     foreach ($name in $targets) {
         $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
-        if (-not $svc) { Write-Log "$name is not installed, skipping" 'WARN'; continue }
+        if (-not $svc) { Write-CameraLog "$name is not installed, skipping" 'WARN'; continue }
         try {
             Stop-Service -Name $name -Force -ErrorAction Stop
             Set-Service  -Name $name -StartupType Disabled
-            Write-Log "$name stopped and disabled" 'OK'
+            Write-CameraLog "$name stopped and disabled" 'OK'
         } catch {
-            Write-Log "$name : $($_.Exception.Message)" 'ERROR'
+            Write-CameraLog "$name : $($_.Exception.Message)" 'ERROR'
         }
     }
     Get-Process -Name 'DetectCameraDMFT' -ErrorAction SilentlyContinue |
-        ForEach-Object { Stop-Process -Id $_.Id -Force; Write-Log "Killed DetectCameraDMFT PID $($_.Id)" 'OK' }
+        ForEach-Object { Stop-Process -Id $_.Id -Force; Write-CameraLog "Killed DetectCameraDMFT PID $($_.Id)" 'OK' }
 
     # ---------------------------------------------- 3 drop the registration ---
-    Write-Log '--- 3. Removing the DMFT registration ---' 'STEP'
+    Write-CameraLog '--- 3. Removing the DMFT registration ---' 'STEP'
     Backup-Registration | Out-Null
 
     $usedVendorTool = $false
@@ -597,55 +615,55 @@ try {
             if (Test-Path -LiteralPath $cand) { $uninst = $cand; break }
         }
         if ($uninst) {
-            Write-Log "Running the vendor uninstaller: $uninst"
+            Write-CameraLog "Running the vendor uninstaller: $uninst"
             try {
                 $proc = Start-Process -FilePath $uninst -Wait -PassThru -WindowStyle Hidden
-                Write-Log ("UninstallAcerCameraDMFT.exe exit code {0}" -f $proc.ExitCode) $(if ($proc.ExitCode -eq 0) {'OK'} else {'WARN'})
+                Write-CameraLog ("UninstallAcerCameraDMFT.exe exit code {0}" -f $proc.ExitCode) $(if ($proc.ExitCode -eq 0) {'OK'} else {'WARN'})
                 $usedVendorTool = $true
             } catch {
-                Write-Log "Could not run it: $($_.Exception.Message)" 'ERROR'
+                Write-CameraLog "Could not run it: $($_.Exception.Message)" 'ERROR'
             }
             if (Test-Path $AcerLogKey) {
                 (Get-ItemProperty $AcerLogKey).PSObject.Properties |
                     Where-Object { $_.Name -notmatch '^PS' } |
-                    ForEach-Object { Write-Log ("  vendor log: {0} = {1}" -f $_.Name, $_.Value) }
+                    ForEach-Object { Write-CameraLog ("  vendor log: {0} = {1}" -f $_.Name, $_.Value) }
             }
         } else {
-            Write-Log 'UninstallAcerCameraDMFT.exe not found, deleting the values directly.' 'WARN'
+            Write-CameraLog 'UninstallAcerCameraDMFT.exe not found, deleting the values directly.' 'WARN'
         }
     }
 
     $leftover = @(Get-DmftRegistration)
     if ($leftover.Count) {
-        if ($usedVendorTool) { Write-Log 'The vendor uninstaller left something behind, cleaning up by hand.' 'WARN' }
+        if ($usedVendorTool) { Write-CameraLog 'The vendor uninstaller left something behind, cleaning up by hand.' 'WARN' }
         foreach ($r in $leftover) {
             & reg delete "$($r.Key)" /v $r.Name /f 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) { Write-Log ("Deleted {0} from [{1}]" -f $r.Name, $r.Category) 'OK' }
-            else                     { Write-Log ("Could not delete {0} in {1}" -f $r.Name, $r.Key) 'ERROR' }
+            if ($LASTEXITCODE -eq 0) { Write-CameraLog ("Deleted {0} from [{1}]" -f $r.Name, $r.Category) 'OK' }
+            else                     { Write-CameraLog ("Could not delete {0} in {1}" -f $r.Name, $r.Key) 'ERROR' }
         }
     }
 
     # ----------------------------------------------------------- 4 verify -----
-    Write-Log '--- 4. Verify ---' 'STEP'
+    Write-CameraLog '--- 4. Verify ---' 'STEP'
     $after = @(Get-DmftRegistration)
     if ($after.Count) {
-        foreach ($r in $after) { Write-Log ("LEFTOVER [{0}] {1} -> {2}" -f $r.Category, $r.Name, $r.Key) 'ERROR' }
+        foreach ($r in $after) { Write-CameraLog ("LEFTOVER [{0}] {1} -> {2}" -f $r.Category, $r.Name, $r.Key) 'ERROR' }
     } else {
-        Write-Log 'No DMFT registration left in any of the three categories.' 'OK'
+        Write-CameraLog 'No DMFT registration left in any of the three categories.' 'OK'
     }
 
     # -------------------------------------------- 5 free and restart device ---
-    Write-Log '--- 5. Restarting the camera device ---' 'STEP'
+    Write-CameraLog '--- 5. Restarting the camera device ---' 'STEP'
 
     if ($Force) {
-        Write-Log 'Taking the camera by force.' 'STEP'
+        Write-CameraLog 'Taking the camera by force.' 'STEP'
         $cameraLocked = Lock-CameraAccess
         Start-Sleep -Seconds 2
         Stop-CameraHolder
         Stop-FrameServerStack
     } else {
         $holders = @(Get-CameraHolder)
-        if ($holders.Count) { Write-Log 'The camera is in use, the restart may fail. -Force takes it anyway.' 'WARN' }
+        if ($holders.Count) { Write-CameraLog 'The camera is in use, the restart may fail. -Force takes it anyway.' 'WARN' }
         & sc.exe stop FrameServer 2>&1 | Out-Null
     }
 
@@ -656,7 +674,7 @@ try {
     $ids = @($ids | Sort-Object -Unique)
 
     if (-not $ids.Count) {
-        Write-Log 'No camera device to restart. Reboot to rebuild the pipeline.' 'WARN'
+        Write-CameraLog 'No camera device to restart. Reboot to rebuild the pipeline.' 'WARN'
         $resetOk = $false
     }
     foreach ($id in $ids) {
@@ -665,7 +683,7 @@ try {
 
 } finally {
     if ($cameraLocked) {
-        Write-Log 'Restoring camera access.' 'STEP'
+        Write-CameraLog 'Restoring camera access.' 'STEP'
         Unlock-CameraAccess
     }
 }
@@ -674,16 +692,16 @@ try {
 
 $after = @(Get-DmftRegistration)
 
-Write-Log ''
-Write-Log '=== SUMMARY ===' 'STEP'
-Write-Log ("Registrations before : {0}" -f $before.Count)
-Write-Log ("Registrations after  : {0}" -f $after.Count)
-Write-Log ("Camera device restart: {0}" -f $(if ($resetOk) { 'ok' } else { 'incomplete, reboot' }))
-Write-Log ("Log                  : {0}" -f $LogFile)
-Write-Log ''
-Write-Log 'Try the camera now. Then reboot and run this script again without -Apply:' 'STEP'
-Write-Log 'if the registrations are still gone after the reboot, the fix is holding.' 'INFO'
-Write-Log 'If they came back, run it again with -Apply -DisableAllServices.' 'INFO'
+Write-CameraLog ''
+Write-CameraLog '=== SUMMARY ===' 'STEP'
+Write-CameraLog ("Registrations before : {0}" -f $before.Count)
+Write-CameraLog ("Registrations after  : {0}" -f $after.Count)
+Write-CameraLog ("Camera device restart: {0}" -f $(if ($resetOk) { 'ok' } else { 'incomplete, reboot' }))
+Write-CameraLog ("Log                  : {0}" -f $LogFile)
+Write-CameraLog ''
+Write-CameraLog 'Try the camera now. Then reboot and run this script again without -Apply:' 'STEP'
+Write-CameraLog 'if the registrations are still gone after the reboot, the fix is holding.' 'INFO'
+Write-CameraLog 'If they came back, run it again with -Apply -DisableAllServices.' 'INFO'
 
 if ($after.Count) { exit 1 }
 if (-not $resetOk) { exit 3 }
