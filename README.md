@@ -198,7 +198,7 @@ read-only output. I will look at every one and widen the script where the
 evidence supports it. Reports where it turns out *not* to be this bug are worth
 just as much.
 
-[new-issue]: https://github.com/bineurale/acer-camera-black-screen-fix/issues/new?template=model-report.yml
+[new-issue]: https://github.com/BiNeurale/acer-camera-black-screen-fix/issues/new?template=model-report.yml
 
 `tools/Camera-Diag.ps1` is what makes those reports useful. It is read-only and
 dumps the whole camera pipeline to a text file: devices and their driver

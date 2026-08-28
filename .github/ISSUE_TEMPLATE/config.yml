@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: My camera is black but the dry run finds nothing
-    url: https://github.com/bineurale/acer-camera-black-screen-fix#is-this-your-problem
+    url: https://github.com/BiNeurale/acer-camera-black-screen-fix#is-this-your-problem
     about: Then this repository does not describe your fault. Read the checklist before opening an issue.
