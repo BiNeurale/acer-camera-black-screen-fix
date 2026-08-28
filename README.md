@@ -1,20 +1,26 @@
-# Acer webcam black screen — root cause and fix
+# Acer webcam black screen on Windows 11 — root cause and fix
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Fixed on](https://img.shields.io/badge/fixed_on-10%2B_machines-2da44e)
-![Platform](https://img.shields.io/badge/Windows_11-found_on_build_26200-0078D4)
+![Platform](https://img.shields.io/badge/Microsoft_Windows_11-build_26100_·_26200-0078D4)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1-5391FE)
 
-The webcam shows a **black picture in every application** — Camera app, Google
-Meet, Teams, Zoom, the browser — while Device Manager insists it is *working
-properly*. No yellow triangle, no error code. Reinstalling the driver does
-nothing. Resetting the Camera app helps until the next reboot.
+**The camera light blinks on and off, the picture stays black in every
+application, and Device Manager insists the webcam is working properly.**
+Acer® laptops on Microsoft® Windows® 11, after a cumulative update. This is why
+it happens, and a fix that survives the reboot.
 
-Acer ships a **Device MFT**: a plug-in that sits inside the Windows camera
-pipeline and touches every frame before your application sees it. A background
-service re-registers that plug-in at every boot. When the plug-in stops handing
-frames over, everything downstream goes black while the driver and the device
-stay healthy — nothing has failed, as far as Windows is concerned.
+No yellow triangle, no error code. Reinstalling the driver does nothing.
+Resetting the Camera app helps until the next restart. The picture is black in
+the Windows 11 Camera app, in Microsoft Teams, in Google Meet, in Zoom and in
+the browser, all at once.
+
+Acer ships a **Device MFT**: a plug-in that sits inside the Windows Media
+Foundation camera pipeline and touches every frame before your application sees
+it. A background service re-registers that plug-in at every boot. When the
+plug-in stops handing frames over, everything downstream goes black while the
+driver and the device stay healthy — nothing has failed, as far as Windows 11 is
+concerned.
 
 That last part is why the registry tweaks in the forum threads "work until you
 reboot". `DetectCameraDMFT.exe` writes the registration back at every startup.
@@ -31,6 +37,30 @@ You have to stop the writer, not just delete what it wrote.
   <source media="(prefers-color-scheme: dark)" srcset="docs/media/pipeline-dark.svg">
   <img alt="The Windows camera pipeline: sensor, usbvideo.inf and DevProxy, the Microsoft platform DMFT, then the Acer DMFT which delivers no frames to the application. A dashed line shows the pipeline bypassing the Acer DMFT after the fix." src="docs/media/pipeline-light.svg" width="860">
 </picture>
+
+## The tell: the light blinks, the picture stays black
+
+The clearest fingerprint of this fault — and the one none of the forum threads
+describes — is what the privacy LED next to the lens does.
+
+- Open any camera application. The light **switches on and off, over and over**,
+  while the preview stays black.
+- Click another window, or minimise that one, and **the blinking stops.**
+- Bring the window back to the front and **the blinking starts again at once**,
+  with the same black picture.
+
+That loop is the application opening the capture stream, waiting for frames that
+never arrive, timing out, closing the stream, and trying again. Every open powers
+the sensor and lights the LED; every timeout turns it off. It goes quiet in the
+background because the application stops asking — Windows 11 suspends packaged
+apps that are not in front, and browsers throttle a hidden tab.
+
+It matters because it settles the argument the forums keep having with
+themselves. *"The light comes on, so it cannot be a driver problem — check the
+BIOS"* is wrong. So is *"the light comes on, so it must be a privacy setting"*.
+The light proves the device opens correctly and the sensor is powered. The frames
+are being dropped **after** the driver, which is exactly where a vendor Device
+MFT sits.
 
 ## Is this your problem?
 
@@ -68,7 +98,20 @@ still [tell me about it](#tell-me-about-your-model): the models where this is
 
 Error codes reported alongside this: `0xA00F429F`, `0xA00F4241`, `0xA00F4292`,
 `0xA00F4271`, `0x80004003`, and `WindowShowFailed` / `CameraSwitchFailed` in the
-Camera app diagnostics.
+Windows 11 Camera app diagnostics.
+
+### The words people use for it
+
+Worth listing, because everybody describes it differently and ends up in a
+different thread: Acer webcam black screen Windows 11 · Acer camera not working
+after a Windows update · webcam light blinking but the screen is black · camera
+LED flashing on and off · Acer Aspire camera shows black · integrated webcam
+black in Teams and Meet but the device is fine · camera stopped working after
+KB update · Acer built-in camera black screen Windows 11 24H2 / 25H2.
+
+If one of those is what you typed to get here, read the [tell about the
+light](#the-tell-the-light-blinks-the-picture-stays-black) and then run the
+read-only check above.
 
 ## Fixing it
 
@@ -186,6 +229,24 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Fix-AcerCameraDMFT.ps1
 Running as SYSTEM is handled: the consent store is per user, so the script walks
 `HKEY_USERS` rather than trusting `HKCU`, which under SYSTEM is empty.
 
+### Checks
+
+Two things break in silence here, so both are tested. If the `reg.exe` parsing
+stops matching, the script does not fail — it cheerfully reports "this machine is
+already clean" and you go home with a black webcam. And if `-Force` blocks camera
+access and then dies before restoring it, the machine is left with no camera at
+all.
+
+```
+pwsh -File tests/Run-Tests.ps1     ->  33 passed, 0 failed
+```
+
+It needs no Windows and nothing installed: the functions are lifted out of the
+script with the PowerShell parser and run against captured `reg.exe` output and
+an in-memory registry, the interrupted-run case included. Both scripts are clean
+under PSScriptAnalyzer and check out against the Windows PowerShell 5.1 syntax
+rules.
+
 ## Tell me about your model
 
 This was found on one model family, on one managed fleet. The Acer extension INF
@@ -241,7 +302,7 @@ tried that turned out to be wrong, is in **[docs/root-cause.md](docs/root-cause.
 
 ## Where it was found
 
-- **Acer Aspire A315-44P**, Ryzen 7 5700U, Windows 11 build 26200, BIOS Insyde V1.13
+- **Acer® Aspire® A315-44P**, AMD Ryzen 7 5700U, Microsoft® Windows® 11 build 26200, BIOS Insyde V1.13
 - Camera: ACER HD User Facing (Quanta), `USB\VID_0408&PID_4033`
 - Driver: `usbvideo.inf` 10.0.26100.8972 — Microsoft inbox UVC, device state OK, problem code 0
 - Component: `acerartaimmxdrivercomponent.inf` 2.0.3038.0, `AcerMediaService.dll` 2.0.3038.0
@@ -257,9 +318,10 @@ assuming mine, so it should behave sensibly where the numbers differ.
 GAI Camera Service", which I found on a second machine and which looks like the
 same mechanism under another name — the script detects its services and
 packages, but I have never had to run the fix against it. Windows 10, where the
-code paths are 5.1 compatible and `pnputil /restart-device` is skipped when
-missing, but which I have not tried. And cameras that are not USB, which the
-forceful remove-and-rescan step refuses to touch on purpose.
+code paths are 5.1 compatible and `pnputil /restart-device` is skipped when it
+is missing, but which I have not tried — everything here was found and fixed on
+Microsoft® Windows® 11. And cameras that are not USB, which the forceful
+remove-and-rescan step refuses to touch on purpose.
 
 ## For Acer and Microsoft engineers
 
@@ -271,14 +333,19 @@ of the same model** in a managed fleet.
 `acerartaimmxdrivercomponent.inf` 2.0.3038.0) launches `DetectCameraDMFT.exe` at
 every boot, which writes `CameraDeviceMftClsidChain` =
 `{2EB17717-49CE-4B6C-85E7-58EE3AF41669}` onto the camera's device interface keys
-in all three KS categories. Media Foundation then loads `AcerMediaService.dll`
-2.0.3038.0 as a Device MFT after the platform DMFT. `CoCreateInstance` on the
+in all three KS categories. Windows Media Foundation then loads
+`AcerMediaService.dll` 2.0.3038.0 as a Device MFT after the platform DMFT. `CoCreateInstance` on the
 CLSID succeeds, the DMFT loads, and it delivers no samples — no error, no event
 log entry, no problem code.
 
+The visible signature, if you want to reproduce it without reading any registry:
+the privacy LED cycles on and off while the preview stays black, stops when the
+window loses focus, and resumes when it regains it — the capture stream being
+opened, starved, timed out and reopened.
+
 The timing says which side changed: `AcerMediaService.dll` is dated 14 July 2026
-and the cameras worked until 27 August 2026, so the August cumulative is what
-made that DMFT incompatible, not the component on its own.
+and the cameras worked until 27 August 2026, so the August 2026 Windows 11
+cumulative is what made that DMFT incompatible, not the component on its own.
 
 And the detail that tends to end the argument quickly: **Acer's own
 `UninstallAcerCameraDMFT.exe`, shipped inside the same driver package, resolves
@@ -293,3 +360,15 @@ Provided as is. It disables a vendor service and edits device interface keys on
 a machine you presumably care about. Everything it does is reversible, and the
 default mode changes nothing, but read the script before you run it on someone
 else's laptop.
+
+## Trademarks
+
+Acer® and Aspire® are registered trademarks of Acer Incorporated. Microsoft®,
+Windows® and Windows Media Foundation are trademarks of the Microsoft group of
+companies. Google Meet, Microsoft Teams and Zoom are trademarks of their
+respective owners.
+
+This is an **independent project. It is not affiliated with, authorised by,
+sponsored by or endorsed by Acer Incorporated or Microsoft Corporation.** Those
+names appear here only to identify the hardware and the operating system that
+the fault affects, which is the only way to describe it accurately.

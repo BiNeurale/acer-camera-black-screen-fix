@@ -46,6 +46,20 @@ break anything: **the August Windows update is what made that DMFT
 incompatible.** That distinction matters for a bug report and not at all for the
 remediation, which is the same either way.
 
+### What the privacy LED shows
+
+Worth recording because it is the observation that rules out the two answers the
+forums keep giving. With the fault present, the LED beside the lens switches on
+and off continuously while the preview stays black; move the window to the
+background and the blinking stops; bring it back to the front and it starts
+again immediately, still black.
+
+That is the application opening the capture stream, receiving no samples,
+timing out, closing it and retrying. The sensor is being powered on every
+attempt, which is why the light comes on at all — so "the light works, therefore
+the driver is fine, check the BIOS" and "the light works, therefore it is a
+privacy setting" are both wrong. The device opens; the frames are lost after it.
+
 ### Outcome
 
 Stopping the writer and clearing the registration took the three registrations
