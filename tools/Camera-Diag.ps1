@@ -9,9 +9,13 @@
     It is not Acer specific - the DMFT section is worth a look on any laptop with
     a vendor "camera effects" stack (Dell, HP, Lenovo and Intel all ship one).
 
-    Run from an elevated PowerShell:
+    Run from an elevated PowerShell, at the root of the repository:
         Set-ExecutionPolicy -Scope Process Bypass -Force
-        .\Camera-Diag.ps1
+        .\tools\Camera-Diag.ps1
+
+    If you are reporting a model you can attach the whole report to an issue -
+    read it first, it contains your machine name and the list of applications
+    that have used the camera.
 #>
 
 [CmdletBinding()]

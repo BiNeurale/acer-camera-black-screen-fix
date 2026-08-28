@@ -1,0 +1,75 @@
+name: Report a model
+description: Tell me whether this matches your Acer, or whether it does not
+title: "[model] "
+labels: ["model report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before anything else, run the fix in its default read-only mode. It
+        changes nothing:
+
+        ```powershell
+        Set-ExecutionPolicy -Scope Process Bypass -Force
+        .\Fix-AcerCameraDMFT.ps1
+        ```
+
+        Reports where the answer is "no match" are just as useful as the other
+        kind: they are what tells me how far this actually reaches.
+
+  - type: input
+    id: model
+    attributes:
+      label: Laptop model
+      description: The full model string, as printed on the sticker or shown by `wmic csproduct get name`
+      placeholder: Acer Aspire A315-44P
+    validations:
+      required: true
+
+  - type: input
+    id: build
+    attributes:
+      label: Windows version and build
+      placeholder: Windows 11 24H2, build 26100.4061
+    validations:
+      required: true
+
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: What happened
+      options:
+        - The dry run found a registration and the fix worked
+        - The dry run found a registration but the camera is still black
+        - The dry run found nothing, so this is a different problem
+        - I have not run it yet, I am reporting the symptom
+    validations:
+      required: true
+
+  - type: textarea
+    id: dryrun
+    attributes:
+      label: Dry run output
+      description: The console output of `.\Fix-AcerCameraDMFT.ps1` with no parameters
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: diag
+    attributes:
+      label: Diagnostic report
+      description: |
+        Optional, but this is the thing that lets me tell one model from
+        another. Run `tools\Camera-Diag.ps1` and paste sections 3, 4 and 5, or
+        attach the whole text file by dragging it into this box.
+
+        Read it before you post it: it contains your machine name and the list
+        of applications that have used the camera.
+      render: text
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: When it broke, which update was installed just before, whether the camera works in the BIOS or from a Linux live USB.

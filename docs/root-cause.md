@@ -203,6 +203,6 @@ none of which I have settled on:
 - `ffmpeg -f dshow -i video="<camera name>"` is the right discriminator if a
   future case does not match this pattern: it goes through DirectShow and tells
   you whether frames exist at all. Prepared, never needed.
-- Running `Camera-Diag.ps1` on other Acer models — including working ones —
+- Running `tools/Camera-Diag.ps1` on other Acer models — including working ones —
   would say whether the CLSID is the same everywhere. The script reads it rather
   than assuming it, but the data point would be worth having.
